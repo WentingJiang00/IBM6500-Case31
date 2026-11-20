@@ -1,0 +1,147 @@
+---
+title: "IC Case 31: Reliability and Factor Analysis"
+subtitle: "R3 and R6"
+author: "Wenting Jiang"
+date: today
+format:
+  html:
+    theme: default
+    toc: true
+    toc-depth: 2
+    embed-resources: true
+    code-copy: true
+    code-overflow: wrap
+execute:
+  eval: false
+editor: visual
+---
+
+# Purpose
+
+This report checks the reliability and dimensionality of two multi-item scales in Case 31. R3 uses Q3–Q6 to measure attitude toward employee proficiency. R6 uses Q31–Q34 to measure operational effectiveness. The data include 128 respondents.
+
+The main decision rules used here are Cronbach's alpha of about .70 or higher, KMO of about .60 or higher, significant Bartlett's test, and a clear one-factor solution with strong loadings.
+
+# Analysis code
+
+``` r
+library(haven)
+library(psych)
+
+case31 <- read_sav("case31-cleaned.sav")
+
+r3_items <- case31[c("q3", "q4", "q5", "q6")]
+r6_items <- case31[c("q31", "q32", "q33", "q34")]
+
+alpha(r3_items)
+KMO(cor(r3_items))
+cortest.bartlett(cor(r3_items), n = nrow(r3_items))
+principal(cor(r3_items), nfactors = 1, rotate = "none")
+
+alpha(r6_items)
+KMO(cor(r6_items))
+cortest.bartlett(cor(r6_items), n = nrow(r6_items))
+principal(cor(r6_items), nfactors = 1, rotate = "none")
+principal(cor(r6_items), nfactors = 2, rotate = "varimax")
+```
+
+# R3: Attitude toward employee proficiency
+
+R3 asks: *What are members' attitudes and beliefs about the proficiency of credit union employees?* The four items are courteousness (Q3), helpfulness (Q4), professionalism (Q5), and availability (Q6).
+
+## Descriptive and reliability results
+
+| Item | Mean | SD | Corrected item-total correlation | Alpha if deleted |
+|---------------|--------------:|--------------:|--------------:|--------------:|
+| Q3: Courteous | 4.352 | 0.659 | 0.657 | 0.852 |
+| Q4: Helpful | 4.312 | 0.696 | 0.823 | 0.785 |
+| Q5: Professional | 4.078 | 0.659 | 0.733 | 0.824 |
+| Q6: Available | 4.078 | 0.790 | 0.673 | 0.853 |
+
+The four R3 items had good internal consistency (Cronbach's $\alpha$ = .866). All corrected item-total correlations were above .65. Removing any item did not improve the alpha, so all four questions should remain in the scale.
+
+## Factor analysis results
+
+| Result                                |                         Value |
+|---------------------------------------|------------------------------:|
+| KMO                                   |                         0.775 |
+| Bartlett's test                       | $\chi^2(6)=263.611$, $p<.001$ |
+| First eigenvalue                      |                         2.879 |
+| Second eigenvalue                     |                         0.555 |
+| Variance explained by first component |                         72.0% |
+
+| Item | Component loading |
+|------|------------------:|
+| Q3   |             0.809 |
+| Q4   |             0.912 |
+| Q5   |             0.854 |
+| Q6   |             0.815 |
+
+The KMO was acceptable and Bartlett's test was significant. Only the first eigenvalue was above 1, and all four loadings were above .80. This is good evidence that the four questions measure one main construct.
+
+## R3 decision
+
+R3 is unidimensional and reliable. Therefore, a composite index can be created by averaging Q3–Q6 for each respondent.
+
+``` r
+case31$r3_employee_proficiency <- rowMeans(
+  case31[c("q3", "q4", "q5", "q6")],
+  na.rm = TRUE
+)
+```
+
+# R6: Operational effectiveness
+
+R6 uses Q31–Q34: confidentiality, prompt loan processing, meeting members' needs, and simple loan applications.
+
+## Descriptive and reliability results
+
+| Item | Mean | SD | Corrected item-total correlation | Alpha if deleted |
+|---------------|--------------:|--------------:|--------------:|--------------:|
+| Q31: Confidentiality | 3.945 | 0.679 | 0.195 | 0.467 |
+| Q32: Prompt processing | 3.719 | 0.793 | 0.495 | 0.144 |
+| Q33: Meets members' needs | 3.594 | 0.681 | 0.187 | 0.473 |
+| Q34: Simple application | 3.461 | 0.783 | 0.229 | 0.445 |
+
+The reliability of Q31–Q34 was low (Cronbach's $\alpha$ = .472). Most corrected item-total correlations were also weak. Deleting one item did not raise alpha to an acceptable level.
+
+## Factor analysis results
+
+| Result                              |                        Value |
+|-------------------------------------|-----------------------------:|
+| KMO                                 |                        0.496 |
+| Bartlett's test                     | $\chi^2(6)=39.334$, $p<.001$ |
+| First eigenvalue                    |                        1.577 |
+| Second eigenvalue                   |                        1.034 |
+| Variance explained by one component |                        39.4% |
+
+| Item | One-component loading |
+|------|----------------------:|
+| Q31  |                 0.512 |
+| Q32  |                 0.844 |
+| Q33  |                 0.483 |
+| Q34  |                 0.608 |
+
+The KMO was below .60, so the items are not very suitable for a single factor analysis. Two eigenvalues were above 1. In a two-component solution, Q32 and Q34 mainly grouped together, while Q31 and Q33 mainly grouped together. This suggests that the four questions do not represent one clear dimension.
+
+``` text
+Two-component rotated loadings
+      Component 1   Component 2
+Q31       0.008         0.779
+Q32       0.716         0.461
+Q33       0.075         0.654
+Q34       0.910        -0.129
+```
+
+## R6 decision
+
+Q31–Q34 should not be combined into one operational-effectiveness index because the scale has low reliability and is not clearly unidimensional. The items should be analyzed separately for the next step. Another option for a future survey would be to revise the wording and add more items for each possible subdimension.
+
+# Overall conclusion
+
+The results are different for the two scales. The R3 employee-proficiency scale is reliable and unidimensional, so a mean composite score is appropriate. The R6 operational-effectiveness items do not form a reliable one-factor scale, so a single composite score is not recommended.
+
+# Appendix
+
+-   GitHub repository:
+-   GitHub Pages:
