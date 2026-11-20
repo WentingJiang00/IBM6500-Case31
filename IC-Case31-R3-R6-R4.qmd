@@ -1,0 +1,329 @@
+---
+title: "IC Case 31: Summary of Data Analysis"
+subtitle: "R3, R6, and R4"
+author: "Wenting Jiang"
+date: today
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    embed-resources: true
+    code-fold: true
+    code-summary: "Show R code"
+execute:
+  echo: false
+  warning: false
+  message: false
+editor: visual
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+library(haven)
+library(knitr)
+
+case31 <- read_sav("case31-prepped.sav")
+
+fmt_p <- function(p) {
+  ifelse(is.na(p), "--", ifelse(p < .001, "< .001", paste0("= ", sprintf("%.3f", p))))
+}
+
+service_names <- c(
+  "Regular share account", "Special subaccounts", "Christmas club account",
+  "IRA", "Master credit card", "Signature loans", "New car loans",
+  "Late model car loans", "Older model car loans", "Household goods loans",
+  "Recreational loans", "Share collateralized loan", "IRA loans",
+  "Line of credit loans"
+)
+
+residence <- factor(case31$q38, levels = c(1, 2), labels = c("Headquarters area", "Elsewhere"))
+```
+
+# R3: Employee proficiency
+
+R3 asks: *What are members' attitudes and beliefs about the proficiency of credit union employees?*
+
+## Descriptive statistics
+
+```{r}
+#| label: tbl-r3-descriptives
+#| tbl-cap: "Employee proficiency composite"
+
+r3_desc <- data.frame(
+  N = sum(!is.na(case31$at_emp)),
+  Mean = mean(case31$at_emp, na.rm = TRUE),
+  SD = sd(case31$at_emp, na.rm = TRUE),
+  Median = median(case31$at_emp, na.rm = TRUE),
+  Minimum = min(case31$at_emp, na.rm = TRUE),
+  Maximum = max(case31$at_emp, na.rm = TRUE)
+)
+kable(r3_desc, digits = 2)
+```
+
+```{r}
+#| label: fig-r3-histogram
+#| fig-cap: "Distribution of the employee-proficiency composite"
+
+hist(
+  case31$at_emp,
+  breaks = seq(2.5, 5.25, by = 0.25),
+  col = "#8ecae6",
+  border = "white",
+  main = "Attitude toward employee proficiency",
+  xlab = "Mean of Q3--Q6"
+)
+abline(v = mean(case31$at_emp), col = "#d1495b", lwd = 2, lty = 2)
+```
+
+## One-sample t-test
+
+The composite mean was compared with 4, the response value for **Agree**.
+
+```{r}
+#| label: tbl-r3-ttest
+#| tbl-cap: "One-sample t-test for employee proficiency (test value = 4)"
+
+r3_test <- t.test(case31$at_emp, mu = 4)
+r3_test_table <- data.frame(
+  Mean = mean(case31$at_emp),
+  `t value` = unname(r3_test$statistic),
+  df = unname(r3_test$parameter),
+  `p value` = r3_test$p.value,
+  `95% CI lower` = r3_test$conf.int[1],
+  `95% CI upper` = r3_test$conf.int[2],
+  check.names = FALSE
+)
+kable(r3_test_table, digits = 3)
+```
+
+## R3 insight
+
+Members had a favorable view of employee proficiency. The average score was **4.21 out of 5**, slightly above the “Agree” point and statistically higher than 4 (*t*(127) = 3.91, *p* \< .001). Courteousness, helpfulness, professionalism, and availability were generally rated positively.
+
+# R6: Operational effectiveness
+
+R6 asks: *What are members' attitudes and beliefs about how effectively the credit union is operated?* The analysis includes statement frequency and accuracy (Q9--Q10), communication and confidentiality questions (Q11--Q12), four operational statements (Q31--Q34), and the overall rating (Q37).
+
+## Metric-item descriptives and one-sample t-tests
+
+For the metric items, the neutral or middle comparison value was 3. Because Q31--Q34 did not form a reliable one-dimensional scale in the previous activity, they are reported separately.
+
+```{r}
+#| label: tbl-r6-metric
+#| tbl-cap: "Operational-effectiveness ratings and one-sample t-tests (test value = 3)"
+
+r6_metric_vars <- c("q10r", "q31", "q32", "q33", "q34", "q37r")
+r6_metric_labels <- c(
+  "Statement accuracy", "Financial information is confidential",
+  "Loan processing is prompt", "CU meets members' needs",
+  "Loan application is simple", "Overall CU rating"
+)
+
+r6_metric <- do.call(rbind, lapply(seq_along(r6_metric_vars), function(i) {
+  x <- case31[[r6_metric_vars[i]]]
+  tt <- t.test(x, mu = 3)
+  data.frame(
+    Measure = r6_metric_labels[i],
+    N = sum(!is.na(x)),
+    Mean = mean(x, na.rm = TRUE),
+    SD = sd(x, na.rm = TRUE),
+    t = unname(tt$statistic),
+    df = unname(tt$parameter),
+    p = ifelse(tt$p.value < .001, "< .001", sprintf("%.3f", tt$p.value))
+  )
+}))
+kable(r6_metric, digits = 2)
+```
+
+## Categorical-item frequencies
+
+```{r}
+#| label: tbl-r6-categorical
+#| tbl-cap: "Response patterns for categorical operational items"
+
+r6_cat <- rbind(
+  data.frame(
+    Measure = "Statement frequency",
+    Response = c("Not often enough", "About right"),
+    N = as.numeric(table(factor(case31$q9r, levels = c(2, 3)))),
+    Percent = 100 * as.numeric(prop.table(table(factor(case31$q9r, levels = c(2, 3)))))
+  ),
+  data.frame(
+    Measure = "Statements are easy to understand",
+    Response = c("Yes", "No"),
+    N = as.numeric(table(factor(case31$q11, levels = c(1, 2)))),
+    Percent = 100 * as.numeric(prop.table(table(factor(case31$q11, levels = c(1, 2)))))
+  ),
+  data.frame(
+    Measure = "Account confidentiality response",
+    Response = c("Yes", "No", "Other / no opinion"),
+    N = as.numeric(table(factor(case31$q12, levels = c(1, 2, 3)))),
+    Percent = 100 * as.numeric(prop.table(table(factor(case31$q12, levels = c(1, 2, 3)))))
+  )
+)
+kable(r6_cat, digits = 1)
+```
+
+The categorical response distributions were not equal across categories (all goodness-of-fit tests, *p* \< .001). The most visible pattern was that 77.3% viewed statement frequency as “about right,” and 97.7% said the statements were easy to understand.
+
+## R6 insight
+
+Overall, members viewed the credit union's operations favorably. The overall rating averaged **4.07 out of 5**. Among Q31--Q34, confidentiality received the highest mean (3.95), while loan-application simplicity received the lowest mean (3.46). All six metric means were above the comparison value of 3 (all *p* \< .001). The results are positive, but loan-application simplicity and promptness have more room for improvement than confidentiality.
+
+# R4: Differences by residence
+
+R4 asks whether members who live near the headquarters differ from members who live elsewhere in employee-proficiency attitudes, service awareness, and operational-effectiveness attitudes.
+
+# R4a: Employee proficiency by residence
+
+## Descriptive statistics
+
+```{r}
+#| label: tbl-r4a-descriptives
+#| tbl-cap: "Employee-proficiency ratings by residence"
+
+r4a_desc <- do.call(rbind, lapply(levels(residence), function(g) {
+  x <- case31$at_emp[residence == g]
+  data.frame(
+    Residence = g,
+    N = sum(!is.na(x)),
+    Mean = mean(x, na.rm = TRUE),
+    SD = sd(x, na.rm = TRUE)
+  )
+}))
+kable(r4a_desc, digits = 2)
+```
+
+```{r}
+#| label: fig-r4a-boxplot
+#| fig-cap: "Employee-proficiency ratings by residence"
+
+boxplot(
+  case31$at_emp ~ residence,
+  col = c("#90be6d", "#f9c74f"),
+  ylab = "Employee-proficiency composite",
+  xlab = "Residence",
+  main = "Employee proficiency by residence"
+)
+```
+
+## Independent-samples t-test
+
+The variance test was not significant (*F*(56, 70) = 0.90, *p* = .686), so equal variances were used for this comparison.
+
+```{r}
+#| label: tbl-r4a-ttest
+#| tbl-cap: "Independent-samples t-test for employee proficiency"
+
+r4a_test <- t.test(case31$at_emp ~ residence, var.equal = TRUE)
+r4a_table <- data.frame(
+  `Mean difference` = unname(diff(r4a_test$estimate)),
+  t = unname(r4a_test$statistic),
+  df = unname(r4a_test$parameter),
+  `p value` = r4a_test$p.value,
+  `95% CI lower` = r4a_test$conf.int[1],
+  `95% CI upper` = r4a_test$conf.int[2],
+  check.names = FALSE
+)
+kable(r4a_table, digits = 3)
+```
+
+## R4a insight
+
+Headquarters-area members had a slightly higher mean (4.28) than members living elsewhere (4.14), but the difference was not statistically significant (*t*(126) = 1.29, *p* = .198). Therefore, perceptions of employee proficiency appear similar across the two residence groups.
+
+# R4b: Service awareness by residence
+
+## Cross-tabulations and chi-square independence tests
+
+```{r}
+#| label: tbl-r4b-awareness
+#| tbl-cap: "Service-awareness patterns and chi-square tests by residence"
+
+awareness_vars <- paste0("q", 13:26, "r")
+
+r4b_results <- do.call(rbind, lapply(seq_along(awareness_vars), function(i) {
+  x <- case31[[awareness_vars[i]]]
+  tab <- table(factor(x, levels = 1:3), factor(case31$q38, levels = 1:2))
+  tab_test <- tab[rowSums(tab) > 0, , drop = FALSE]
+  chi <- suppressWarnings(chisq.test(tab_test))
+  pct <- 100 * prop.table(tab, margin = 2)
+  data.frame(
+    Service = service_names[i],
+    `HQ: unaware %` = pct[1, 1],
+    `Elsewhere: unaware %` = pct[1, 2],
+    `Chi-square` = unname(chi$statistic),
+    df = unname(chi$parameter),
+    p = ifelse(chi$p.value < .001, "< .001", sprintf("%.3f", chi$p.value)),
+    check.names = FALSE
+  )
+}))
+kable(r4b_results, digits = 1)
+```
+
+## R4b insight
+
+None of the 14 service-awareness measures had a significant association with residence (all *p* \> .05). For example, regular-share-account awareness did not differ by residence ($\chi^2$(2) = 1.27, *p* = .529). Although some percentages varied slightly, there was no consistent evidence that living near the headquarters improved awareness of available services.
+
+# R4c: Operational effectiveness by residence
+
+## Metric outcomes: two-group t-tests
+
+```{r}
+#| label: tbl-r4c-metric
+#| tbl-cap: "Operational-effectiveness means and tests by residence"
+
+r4c_metric <- do.call(rbind, lapply(seq_along(r6_metric_vars), function(i) {
+  x <- case31[[r6_metric_vars[i]]]
+  tt <- t.test(x ~ residence)
+  data.frame(
+    Measure = r6_metric_labels[i],
+    `HQ mean` = mean(x[residence == "Headquarters area"], na.rm = TRUE),
+    `Elsewhere mean` = mean(x[residence == "Elsewhere"], na.rm = TRUE),
+    t = unname(tt$statistic),
+    df = unname(tt$parameter),
+    p = ifelse(tt$p.value < .001, "< .001", sprintf("%.3f", tt$p.value)),
+    check.names = FALSE
+  )
+}))
+kable(r4c_metric, digits = 2)
+```
+
+## Categorical outcomes: chi-square independence tests
+
+```{r}
+#| label: tbl-r4c-categorical
+#| tbl-cap: "Categorical operational measures and chi-square tests by residence"
+
+r4c_cat_vars <- c("q9r", "q11", "q12")
+r4c_cat_labels <- c("Statement frequency", "Statements easy to understand", "Account confidentiality response")
+
+r4c_cat <- do.call(rbind, lapply(seq_along(r4c_cat_vars), function(i) {
+  tab <- table(case31[[r4c_cat_vars[i]]], case31$q38)
+  chi <- suppressWarnings(chisq.test(tab))
+  data.frame(
+    Measure = r4c_cat_labels[i],
+    `Chi-square` = unname(chi$statistic),
+    df = unname(chi$parameter),
+    p = ifelse(chi$p.value < .001, "< .001", sprintf("%.3f", chi$p.value)),
+    check.names = FALSE
+  )
+}))
+kable(r4c_cat, digits = 2)
+```
+
+## R4c insight
+
+Most operational-effectiveness measures did not differ by residence. The one exception was loan-application simplicity: members living elsewhere rated applications more positively (3.61) than headquarters-area members (3.28), and this difference was significant (*t*(94.24) = -2.28, *p* = .025). The other metric and categorical comparisons were not significant. Since many tests were performed, this single difference should be interpreted carefully.
+
+# Overall conclusion
+
+Members generally rated employee proficiency and credit-union operations positively. Residence was not related to employee-proficiency ratings or service awareness, and nearly all operational measures were also similar between the groups. The main practical concern is loan-application simplicity, which received a lower overall rating and was rated especially low by headquarters-area members.
+
+# Appendix
+
+-   GitHub repository: <https://github.com/WentingJiang00/IBM6500-Case31>
+-   GitHub Pages: <https://wentingjiang00.github.io/IBM6500-Case31/>
