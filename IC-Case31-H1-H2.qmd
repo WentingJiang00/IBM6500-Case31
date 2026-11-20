@@ -1,0 +1,229 @@
+---
+title: "A Summary of Data Analysis for H1-H2"
+author: "Wenting Jiang"
+date: today
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    embed-resources: true
+    code-fold: true
+    code-summary: "Show R code"
+execute:
+  echo: false
+  warning: false
+  message: false
+editor: visual
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+library(haven)
+library(knitr)
+
+case31 <- read_sav("case31-prepped.sav")
+
+case31$q13_group <- factor(
+  case31$q13r,
+  levels = c(1, 2, 3),
+  labels = c("Unaware", "Aware but not used", "Aware and used")
+)
+
+fmt_p <- function(p) {
+  ifelse(p < .001, "< .001", paste0("= ", sprintf("%.3f", p)))
+}
+```
+
+# H1: Awareness and adequacy of services
+
+**H1:** Members' awareness of regular share accounts will influence their opinions about the adequacy of financial services in meeting members' needs.
+
+-   Independent variable: regular share-account awareness (`q13r`)
+-   Dependent variable: financial services meet members' needs (`q33`)
+-   Test: one-way ANOVA
+
+## Descriptive statistics
+
+```{r}
+#| label: tbl-h1-descriptives
+#| tbl-cap: "Adequacy-of-services ratings by regular share-account awareness"
+
+h1_desc <- do.call(rbind, lapply(levels(case31$q13_group), function(g) {
+  x <- case31$q33[case31$q13_group == g]
+  data.frame(
+    Awareness = g,
+    N = sum(!is.na(x)),
+    Mean = mean(x, na.rm = TRUE),
+    SD = sd(x, na.rm = TRUE),
+    Median = median(x, na.rm = TRUE)
+  )
+}))
+kable(h1_desc, digits = 2)
+```
+
+```{r}
+#| label: fig-h1-means
+#| fig-cap: "Mean adequacy-of-services rating by awareness group"
+
+cols <- c("#90be6d", "#f9c74f", "#f9844a")
+bar_centers <- barplot(
+  h1_desc$Mean,
+  names.arg = c("Unaware", "Aware,\nnot used", "Aware\nand used"),
+  col = cols,
+  ylim = c(0, 5),
+  ylab = "Mean rating of services meeting needs",
+  main = "Service adequacy by share-account awareness"
+)
+text(bar_centers, h1_desc$Mean + .18, labels = sprintf("%.2f", h1_desc$Mean))
+```
+
+The first two awareness groups had similar mean ratings (3.63 and 3.72). Members who were aware of and had used the regular share account gave a lower average rating of 3.08.
+
+## Assumption checks
+
+```{r}
+#| label: tbl-h1-assumptions
+#| tbl-cap: "H1 assumption checks"
+
+h1_model <- aov(q33 ~ q13_group, data = case31)
+h1_shapiro <- shapiro.test(residuals(h1_model))
+h1_levene <- car::leveneTest(q33 ~ q13_group, data = case31)
+
+h1_assumptions <- data.frame(
+  Test = c("Shapiro-Wilk test of residuals", "Levene's homogeneity test"),
+  Statistic = c(unname(h1_shapiro$statistic), h1_levene[1, "F value"]),
+  df = c(NA, h1_levene[1, "Df"]),
+  p = c(h1_shapiro$p.value, h1_levene[1, "Pr(>F)"])
+)
+kable(h1_assumptions, digits = 3)
+```
+
+The variance assumption was met (Levene's *p* = .917), but the residuals were not normally distributed (Shapiro-Wilk *p* \< .001). For this reason, I report the planned ANOVA and also use a Kruskal-Wallis test as a nonparametric check.
+
+## One-way ANOVA and robustness check
+
+```{r}
+#| label: tbl-h1-tests
+#| tbl-cap: "H1 omnibus tests"
+
+h1_summary <- summary(h1_model)[[1]]
+h1_kw <- kruskal.test(q33 ~ q13_group, data = case31)
+h1_eta2 <- h1_summary[1, "Sum Sq"] / sum(h1_summary[, "Sum Sq"])
+
+h1_tests <- data.frame(
+  Test = c("One-way ANOVA", "Kruskal-Wallis"),
+  Statistic = c(h1_summary[1, "F value"], unname(h1_kw$statistic)),
+  df1 = c(h1_summary[1, "Df"], unname(h1_kw$parameter)),
+  df2 = c(h1_summary[2, "Df"], NA),
+  p = c(h1_summary[1, "Pr(>F)"], h1_kw$p.value)
+)
+kable(h1_tests, digits = 3)
+```
+
+The mean ratings were not equal across the three awareness groups (*F*(2, 125) = 4.63, *p* = .012, $\eta^2$ = .069). The Kruskal-Wallis result led to the same conclusion ($\chi^2$(2) = 7.11, *p* = .029).
+
+## Post-hoc comparisons
+
+```{r}
+#| label: tbl-h1-posthoc
+#| tbl-cap: "Tukey post-hoc comparisons for H1"
+
+h1_tukey <- as.data.frame(TukeyHSD(h1_model)$q13_group)
+h1_tukey$Comparison <- rownames(h1_tukey)
+rownames(h1_tukey) <- NULL
+h1_tukey <- h1_tukey[, c("Comparison", "diff", "lwr", "upr", "p adj")]
+names(h1_tukey) <- c("Comparison", "Mean difference", "CI lower", "CI upper", "Adjusted p")
+kable(h1_tukey, digits = 3)
+```
+
+The “aware and used” group rated service adequacy lower than both the unaware group (adjusted *p* = .017) and the aware-but-not-used group (adjusted *p* = .011). The two lower-awareness groups did not differ (*p* = .782).
+
+## H1 insight and decision
+
+H1 is supported because regular share-account awareness groups differed in their opinions about whether the credit union's services meet members' needs. However, the pattern was not simply “more awareness means a better opinion.” Members who had actually used the account were the least positive. This result may point to an experience issue rather than an awareness issue, so the credit union may want to ask users what part of the service did not meet their needs.
+
+# H2: Comparison of two loan-rate opinions
+
+**H2:** Members will not differ in their opinion of the credit union's loan rate (`q8r`) and the degree to which they agree that its loan rate is lower than competitors (`q30`).
+
+-   Paired measure 1: opinion of fund-borrowing rates (`q8r`)
+-   Paired measure 2: agreement that CU loan rates are lower than competitors (`q30`)
+-   Test: paired-samples t-test
+
+## Paired descriptive statistics
+
+```{r}
+#| label: tbl-h2-descriptives
+#| tbl-cap: "Descriptive statistics for the two paired loan-rate measures"
+
+h2_complete <- complete.cases(case31$q8r, case31$q30)
+h2_q8 <- case31$q8r[h2_complete]
+h2_q30 <- case31$q30[h2_complete]
+h2_diff <- h2_q8 - h2_q30
+
+h2_desc <- data.frame(
+  Measure = c("Opinion of CU borrowing rate", "CU loan rate is lower than competitors"),
+  N = c(length(h2_q8), length(h2_q30)),
+  Mean = c(mean(h2_q8), mean(h2_q30)),
+  SD = c(sd(h2_q8), sd(h2_q30))
+)
+kable(h2_desc, digits = 2)
+```
+
+```{r}
+#| label: fig-h2-paired-means
+#| fig-cap: "Mean scores for the paired loan-rate measures"
+
+h2_centers <- barplot(
+  h2_desc$Mean,
+  names.arg = c("Borrowing-rate\nopinion", "Lower than\ncompetitors"),
+  col = c("#577590", "#43aa8b"),
+  ylim = c(0, 5),
+  ylab = "Mean score",
+  main = "Paired loan-rate opinions"
+)
+text(h2_centers, h2_desc$Mean + .18, labels = sprintf("%.2f", h2_desc$Mean))
+```
+
+The two means were close: 3.14 for borrowing-rate opinion and 3.06 for agreement that the credit union's rate is lower than competitors. The average paired difference was only 0.08.
+
+## Paired-samples t-test
+
+```{r}
+#| label: tbl-h2-test
+#| tbl-cap: "Paired-samples t-test for the loan-rate measures"
+
+h2_test <- t.test(h2_q8, h2_q30, paired = TRUE)
+h2_dz <- mean(h2_diff) / sd(h2_diff)
+
+h2_test_table <- data.frame(
+  `Mean difference` = mean(h2_diff),
+  `SD difference` = sd(h2_diff),
+  t = unname(h2_test$statistic),
+  df = unname(h2_test$parameter),
+  p = h2_test$p.value,
+  `95% CI lower` = h2_test$conf.int[1],
+  `95% CI upper` = h2_test$conf.int[2],
+  `Cohen's dz` = h2_dz,
+  check.names = FALSE
+)
+kable(h2_test_table, digits = 3)
+```
+
+The paired differences were not normally distributed (Shapiro-Wilk *p* \< .001). A Wilcoxon signed-rank test was therefore also checked, and it agreed with the paired t-test (*p* = .603).
+
+## H2 insight and decision
+
+There was no statistically significant difference between the two loan-rate opinions (*t*(106) = 0.60, *p* = .549, 95% CI \[-0.19, 0.36\]). The effect size was very small ($d_z$ = .06). Therefore, the data are consistent with H2: members rated the two aspects of the credit union's loan rates similarly.
+
+# Overall conclusion
+
+H1 and H2 produced different results. H1 showed a meaningful awareness-group difference: members who had used the regular share account were less positive about whether financial services met their needs. H2 showed that the same members gave similar average ratings to the two loan-rate questions. The more actionable result is H1 because it suggests a need to understand the experience of members who have actually used the regular share account.
+
+# Appendix
+
+-   GitHub repository:
+-   GitHub Pages:
