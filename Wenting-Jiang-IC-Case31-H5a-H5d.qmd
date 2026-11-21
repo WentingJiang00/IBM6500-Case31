@@ -1,0 +1,239 @@
+---
+title: "IC-Case 31-Summary of Data Analysis for H5a-H5d"
+author: "Wenting Jiang"
+date: today
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    embed-resources: true
+    code-fold: true
+    code-summary: "Show R code"
+execute:
+  echo: true
+  warning: false
+  message: false
+editor: visual
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+library(haven)
+library(knitr)
+
+case31 <- read_sav("case31-prepped.sav")
+
+h5_model <- lm(q37r ~ q31 + q32 + q33 + q34, data = case31)
+h5_data <- model.frame(h5_model)
+
+variable_labels <- c(
+  q37r = "Overall operational efficiency",
+  q31 = "Financial information is confidential",
+  q32 = "Loan processing is prompt",
+  q33 = "Financial services meet members' needs",
+  q34 = "Loan application is simple"
+)
+```
+
+# Introduction
+
+This report tests H5a through H5d for the Employees Federal Credit Union case. All four hypotheses have the same dependent variable, overall attitude toward the credit union's operational efficiency (`q37r`). Therefore, one multiple regression model is used to estimate the unique relationship of each predictor while holding the other predictors constant.
+
+The hypotheses are:
+
+-   **H5a:** Belief that the credit union keeps financial information confidential (`q31`) will positively influence overall operational efficiency.
+-   **H5b:** Loan-application processing promptness (`q32`) will positively influence overall operational efficiency.
+-   **H5c:** Satisfaction that financial services meet members' needs (`q33`) will positively influence overall operational efficiency.
+-   **H5d:** Loan-application simplicity (`q34`) will positively influence overall operational efficiency.
+
+# Descriptive statistics
+
+```{r}
+#| label: tbl-h5-descriptives
+#| tbl-cap: "Descriptive statistics for the regression variables"
+
+h5_vars <- c("q37r", "q31", "q32", "q33", "q34")
+
+h5_desc <- do.call(rbind, lapply(h5_vars, function(v) {
+  x <- case31[[v]]
+  data.frame(
+    Variable = unname(variable_labels[v]),
+    N = sum(!is.na(x)),
+    Mean = mean(x, na.rm = TRUE),
+    SD = sd(x, na.rm = TRUE),
+    Minimum = min(x, na.rm = TRUE),
+    Maximum = max(x, na.rm = TRUE)
+  )
+}))
+kable(h5_desc, digits = 2)
+```
+
+Members generally gave positive ratings. Overall operational efficiency had a mean of 4.07 out of 5. Confidentiality received the highest predictor mean (3.95), while loan-application simplicity had the lowest mean (3.46).
+
+# Bivariate relationships
+
+```{r}
+#| label: tbl-h5-correlations
+#| tbl-cap: "Correlations among the regression variables"
+
+h5_cor <- cor(case31[h5_vars], use = "complete.obs")
+colnames(h5_cor) <- c("Efficiency", "Confidentiality", "Promptness", "Meets needs", "Simplicity")
+rownames(h5_cor) <- colnames(h5_cor)
+kable(h5_cor, digits = 3)
+```
+
+Promptness had the strongest simple correlation with overall efficiency (*r* = .429), followed by meeting members' needs (*r* = .375) and confidentiality (*r* = .329). Loan-application simplicity had only a weak correlation with overall efficiency (*r* = .076).
+
+```{r}
+#| label: fig-h5-scatterplots
+#| fig-cap: "Scatterplots of each predictor and overall operational efficiency"
+#| fig-width: 9
+#| fig-height: 8
+
+par(mfrow = c(2, 2), mar = c(4, 4, 2, 1))
+for (v in c("q31", "q32", "q33", "q34")) {
+  plot(
+    case31[[v]], case31$q37r,
+    xlab = unname(variable_labels[v]),
+    ylab = "Overall operational efficiency",
+    pch = 19,
+    col = rgb(0.15, 0.35, 0.55, 0.45)
+  )
+  abline(lm(case31$q37r ~ case31[[v]]), col = "#d1495b", lwd = 2)
+}
+par(mfrow = c(1, 1))
+```
+
+# Regression assumptions
+
+## Independence, homoscedasticity, and normality
+
+```{r}
+#| label: tbl-h5-assumptions
+#| tbl-cap: "Regression assumption tests"
+
+h5_dw <- lmtest::dwtest(h5_model)
+h5_bp <- lmtest::bptest(h5_model)
+h5_shapiro <- shapiro.test(residuals(h5_model))
+
+h5_assumptions <- data.frame(
+  Test = c("Durbin-Watson independence", "Breusch-Pagan homoscedasticity", "Shapiro-Wilk residual normality"),
+  Statistic = c(unname(h5_dw$statistic), unname(h5_bp$statistic), unname(h5_shapiro$statistic)),
+  df = c(NA, unname(h5_bp$parameter), NA),
+  p = c(h5_dw$p.value, h5_bp$p.value, h5_shapiro$p.value)
+)
+kable(h5_assumptions, digits = 3)
+```
+
+The independence assumption was acceptable (Durbin-Watson = 2.23), and the Breusch-Pagan test did not indicate heteroscedasticity (*p* = .332). The Shapiro-Wilk test was significant (*p* \< .001), so the residuals were not perfectly normal. With 121 complete cases, the regression is still useful, but significance values should be interpreted with this limitation in mind.
+
+```{r}
+#| label: fig-h5-diagnostics
+#| fig-cap: "Residual diagnostic plots"
+#| fig-width: 9
+#| fig-height: 4.5
+
+par(mfrow = c(1, 2))
+plot(h5_model, which = 1)
+plot(h5_model, which = 2)
+par(mfrow = c(1, 1))
+```
+
+## Multicollinearity and influential observations
+
+```{r}
+#| label: tbl-h5-vif
+#| tbl-cap: "Variance inflation factors"
+
+h5_vif <- car::vif(h5_model)
+kable(data.frame(Predictor = names(h5_vif), VIF = as.numeric(h5_vif)), digits = 3)
+```
+
+All VIF values were below 1.40, so multicollinearity was not a concern. The maximum Cook's distance was 0.17, below the common threshold of 1. Some observations had more influence than average, but no single case appeared to dominate the regression result.
+
+# Multiple regression results
+
+## Overall model fit
+
+```{r}
+#| label: tbl-h5-model-fit
+#| tbl-cap: "Overall multiple regression model fit"
+
+h5_summary <- summary(h5_model)
+h5_f <- h5_summary$fstatistic
+
+h5_fit <- data.frame(
+  N = nobs(h5_model),
+  R2 = h5_summary$r.squared,
+  `Adjusted R2` = h5_summary$adj.r.squared,
+  F = unname(h5_f[1]),
+  df1 = unname(h5_f[2]),
+  df2 = unname(h5_f[3]),
+  p = pf(h5_f[1], h5_f[2], h5_f[3], lower.tail = FALSE),
+  check.names = FALSE
+)
+kable(h5_fit, digits = 3)
+```
+
+The four predictors jointly explained 30.1% of the variation in overall operational efficiency, and the model was statistically significant (*F*(4, 116) = 12.46, *p* \< .001). The adjusted $R^2$ was .276.
+
+## Regression coefficients
+
+```{r}
+#| label: tbl-h5-coefficients
+#| tbl-cap: "Predictors of overall operational efficiency"
+
+h5_coef <- as.data.frame(coef(h5_summary))
+h5_ci <- confint(h5_model)
+
+h5_std_model <- lm(
+  scale(q37r) ~ scale(q31) + scale(q32) + scale(q33) + scale(q34),
+  data = h5_data
+)
+h5_beta <- coef(h5_std_model)
+
+h5_coef_table <- data.frame(
+  Predictor = c("Intercept", "Confidentiality (H5a)", "Processing promptness (H5b)", "Services meet needs (H5c)", "Application simplicity (H5d)"),
+  B = h5_coef[, "Estimate"],
+  SE = h5_coef[, "Std. Error"],
+  Beta = c(NA, h5_beta[-1]),
+  t = h5_coef[, "t value"],
+  p = h5_coef[, "Pr(>|t|)"],
+  `CI lower` = h5_ci[, 1],
+  `CI upper` = h5_ci[, 2],
+  check.names = FALSE
+)
+kable(h5_coef_table, digits = 3)
+```
+
+Holding the other variables constant, confidentiality, promptness, and meeting members' needs were significant positive predictors. Processing promptness had the largest standardized coefficient ($\beta$ = .340), followed by meeting members' needs ($\beta$ = .273) and confidentiality ($\beta$ = .176). Application simplicity was not a significant predictor and its estimated coefficient was slightly negative.
+
+# Hypothesis decisions
+
+## H5a: Confidentiality
+
+H5a is supported. Belief that the credit union protects personal financial information was positively associated with overall operational efficiency (*B* = 0.188, $\beta$ = .176, *p* = .036). A one-point increase in confidentiality rating was associated with about a 0.19-point increase in overall efficiency, controlling for the other predictors.
+
+## H5b: Processing promptness
+
+H5b is supported. Loan-processing promptness was the strongest predictor in the model (*B* = 0.308, $\beta$ = .340, *p* \< .001). This suggests that faster and more responsive processing may have the greatest practical connection to members' overall view of operations.
+
+## H5c: Services meet members' needs
+
+H5c is supported. Members who believed financial services met their needs also rated the credit union's overall operations more positively (*B* = 0.294, $\beta$ = .273, *p* \< .001).
+
+## H5d: Application simplicity
+
+H5d is not supported. Application simplicity was not significantly related to overall efficiency after the other variables were controlled (*B* = -0.068, $\beta$ = -.074, *p* = .390). Simplicity may still matter to the customer experience, but this model does not show a unique positive effect on the overall operational rating.
+
+# Overall insight
+
+The model suggests that overall operational efficiency is mainly connected to prompt service, meeting member needs, and confidence in confidentiality. Loan-processing promptness was the strongest predictor. The credit union should therefore prioritize timely processing and service adequacy while maintaining members' confidence that financial information is protected. Application simplicity did not add unique explanatory value once the other three factors were considered.
+
+# Appendix
+
+-   GitHub repository:
+-   GitHub Pages:
